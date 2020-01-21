@@ -7,9 +7,22 @@
 // Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkID=324981
+// http://go.microsoft.com/fwlink/?LinkID=512686
 //--------------------------------------------------------------------------------------
 
-#include "mesh.h"
+#pragma warning(push)
+#pragma warning(disable : 4005)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#define NODRAWTEXT
+#define NOGDI
+#define NOMCX
+#define NOSERVICE
+#define NOHELP
+#pragma warning(pop)
+
+#include "Mesh.h"
+#include "SDKMesh.h"
 
 #include <DirectXPackedVector.h>
 #include <DirectXCollision.h>
@@ -21,9 +34,9 @@ namespace
 {
     struct handle_closer { void operator()(HANDLE h) { if (h) CloseHandle(h); } };
 
-    typedef public std::unique_ptr<void, handle_closer> ScopedHandle;
+    using ScopedHandle = std::unique_ptr<void, handle_closer>;
 
-    inline HANDLE safe_handle(HANDLE h) { return (h == INVALID_HANDLE_VALUE) ? 0 : h; }
+    inline HANDLE safe_handle(HANDLE h) { return (h == INVALID_HANDLE_VALUE) ? nullptr : h; }
 
     template<typename T> inline HRESULT write_file(HANDLE hFile, const T& value)
     {
@@ -39,7 +52,7 @@ namespace
 
     inline HRESULT write_file_string(HANDLE hFile, const wchar_t* value)
     {
-        UINT length = (value) ? static_cast<UINT>( wcslen(value)+1 ) : 1;
+        UINT length = (value) ? static_cast<UINT>(wcslen(value) + 1) : 1;
 
         DWORD bytesWritten;
         if (!WriteFile(hFile, &length, static_cast<DWORD>(sizeof(UINT)), &bytesWritten, nullptr))
@@ -80,29 +93,29 @@ namespace
 }
 
 // Move constructor
-Mesh::Mesh(Mesh&& moveFrom)
+Mesh::Mesh(Mesh&& moveFrom) noexcept : mnFaces(0), mnVerts(0)
 {
     *this = std::move(moveFrom);
 }
 
 // Move operator
-Mesh& Mesh::operator= (Mesh&& moveFrom)
+Mesh& Mesh::operator= (Mesh&& moveFrom) noexcept
 {
     if (this != &moveFrom)
     {
         mnFaces = moveFrom.mnFaces;
         mnVerts = moveFrom.mnVerts;
-        mIndices.swap( moveFrom.mIndices );
-        mAttributes.swap( moveFrom.mAttributes );
-        mAdjacency.swap( moveFrom.mAdjacency );
-        mPositions.swap( moveFrom.mPositions );
-        mNormals.swap( moveFrom.mNormals );
-        mTangents.swap( moveFrom.mTangents );
-        mBiTangents.swap( moveFrom.mBiTangents );
-        mTexCoords.swap( moveFrom.mTexCoords );
-        mColors.swap( moveFrom.mColors );
-        mBlendIndices.swap( moveFrom.mBlendIndices );
-        mBlendWeights.swap( moveFrom.mBlendWeights );
+        mIndices.swap(moveFrom.mIndices);
+        mAttributes.swap(moveFrom.mAttributes);
+        mAdjacency.swap(moveFrom.mAdjacency);
+        mPositions.swap(moveFrom.mPositions);
+        mNormals.swap(moveFrom.mNormals);
+        mTangents.swap(moveFrom.mTangents);
+        mBiTangents.swap(moveFrom.mBiTangents);
+        mTexCoords.swap(moveFrom.mTexCoords);
+        mColors.swap(moveFrom.mColors);
+        mBlendIndices.swap(moveFrom.mBlendIndices);
+        mBlendWeights.swap(moveFrom.mBlendWeights);
     }
     return *this;
 }
@@ -132,13 +145,13 @@ void Mesh::Clear()
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::SetIndexData( size_t nFaces, const uint16_t* indices, uint32_t* attributes )
+HRESULT Mesh::SetIndexData(size_t nFaces, const uint16_t* indices, uint32_t* attributes)
 {
-    if ( !nFaces || !indices )
+    if (!nFaces || !indices)
         return E_INVALIDARG;
 
-    if ( ( uint64_t(nFaces) * 3 ) >= UINT32_MAX )
-        return HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW );
+    if ((uint64_t(nFaces) * 3) >= UINT32_MAX)
+        return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
     // Release face data
     mnFaces = 0;
@@ -149,26 +162,26 @@ HRESULT Mesh::SetIndexData( size_t nFaces, const uint16_t* indices, uint32_t* at
     if (!ib)
         return E_OUTOFMEMORY;
 
-    for( size_t j = 0; j < (nFaces*3); ++j )
+    for (size_t j = 0; j < (nFaces * 3); ++j)
     {
-        if ( indices[ j ] == uint16_t(-1) )
+        if (indices[j] == uint16_t(-1))
         {
-            ib[ j ] = uint32_t(-1);
+            ib[j] = uint32_t(-1);
         }
         else
         {
-            ib[ j ] = indices[ j ];
+            ib[j] = indices[j];
         }
     }
 
     std::unique_ptr<uint32_t[]> attr;
-    if ( attributes )
+    if (attributes)
     {
-        attr.reset( new (std::nothrow) uint32_t[ nFaces ] );
-        if ( !attr )
+        attr.reset(new (std::nothrow) uint32_t[nFaces]);
+        if (!attr)
             return E_OUTOFMEMORY;
-        
-        memcpy( attr.get(), attributes, sizeof(uint32_t) * nFaces);
+
+        memcpy(attr.get(), attributes, sizeof(uint32_t) * nFaces);
     }
 
     mIndices.swap(ib);
@@ -179,32 +192,32 @@ HRESULT Mesh::SetIndexData( size_t nFaces, const uint16_t* indices, uint32_t* at
 }
 
 _Use_decl_annotations_
-HRESULT Mesh::SetIndexData( size_t nFaces, const uint32_t* indices, uint32_t* attributes )
+HRESULT Mesh::SetIndexData(size_t nFaces, const uint32_t* indices, uint32_t* attributes)
 {
-    if ( !nFaces || !indices )
+    if (!nFaces || !indices)
         return E_INVALIDARG;
 
-    if ( ( uint64_t(nFaces) * 3 ) >= UINT32_MAX )
-        return HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW );
+    if ((uint64_t(nFaces) * 3) >= UINT32_MAX)
+        return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
     mnFaces = 0;
     mIndices.reset();
     mAttributes.reset();
 
-    std::unique_ptr<uint32_t[]> ib( new (std::nothrow) uint32_t[ nFaces * 3] );
-    if ( !ib )
+    std::unique_ptr<uint32_t[]> ib(new (std::nothrow) uint32_t[nFaces * 3]);
+    if (!ib)
         return E_OUTOFMEMORY;
 
-    memcpy( ib.get(), indices, sizeof(uint32_t) * nFaces * 3 );
+    memcpy(ib.get(), indices, sizeof(uint32_t) * nFaces * 3);
 
     std::unique_ptr<uint32_t[]> attr;
-    if ( attributes )
+    if (attributes)
     {
-        attr.reset( new (std::nothrow) uint32_t[ nFaces ] );
-        if ( !attr )
+        attr.reset(new (std::nothrow) uint32_t[nFaces]);
+        if (!attr)
             return E_OUTOFMEMORY;
-        
-        memcpy( attr.get(), attributes, sizeof(uint32_t) * nFaces );
+
+        memcpy(attr.get(), attributes, sizeof(uint32_t) * nFaces);
     }
 
     mIndices.swap(ib);
@@ -216,9 +229,9 @@ HRESULT Mesh::SetIndexData( size_t nFaces, const uint32_t* indices, uint32_t* at
 
 
 //--------------------------------------------------------------------------------------
-HRESULT Mesh::SetVertexData( _Inout_ DirectX::VBReader& reader, _In_ size_t nVerts )
+HRESULT Mesh::SetVertexData(_Inout_ DirectX::VBReader& reader, _In_ size_t nVerts)
 {
-    if ( !nVerts )
+    if (!nVerts)
         return E_INVALIDARG;
 
     // Release vertex data
@@ -233,14 +246,14 @@ HRESULT Mesh::SetVertexData( _Inout_ DirectX::VBReader& reader, _In_ size_t nVer
     mBlendWeights.reset();
 
     // Load positions (required)
-    std::unique_ptr<XMFLOAT3[]> pos( new (std::nothrow) XMFLOAT3[ nVerts ] );
+    std::unique_ptr<XMFLOAT3[]> pos(new (std::nothrow) XMFLOAT3[nVerts]);
     if (!pos)
         return E_OUTOFMEMORY;
-    
+
     HRESULT hr = reader.Read(pos.get(), "SV_Position", 0, nVerts);
     if (FAILED(hr))
         return hr;
-    
+
     // Load normals
     std::unique_ptr<XMFLOAT3[]> norms;
     auto e = reader.GetElement11("NORMAL", 0);
@@ -340,14 +353,14 @@ HRESULT Mesh::SetVertexData( _Inout_ DirectX::VBReader& reader, _In_ size_t nVer
     }
 
     // Return values
-    mPositions.swap( pos );
-    mNormals.swap( norms );
-    mTangents.swap( tans1 );
-    mBiTangents.swap( tans2 );
-    mTexCoords.swap( texcoord );
-    mColors.swap( colors );
-    mBlendIndices.swap( blendIndices );
-    mBlendWeights.swap( blendWeights );
+    mPositions.swap(pos);
+    mNormals.swap(norms);
+    mTangents.swap(tans1);
+    mBiTangents.swap(tans2);
+    mTexCoords.swap(texcoord);
+    mColors.swap(colors);
+    mBlendIndices.swap(blendIndices);
+    mBlendWeights.swap(blendWeights);
     mnVerts = nVerts;
 
     return S_OK;
@@ -366,7 +379,7 @@ HRESULT Mesh::Validate(DWORD flags, std::wstring* msgs) const
 
 
 //--------------------------------------------------------------------------------------
-HRESULT Mesh::Clean( _In_ bool breakBowties )
+HRESULT Mesh::Clean(_In_ bool breakBowties)
 {
     if (!mnFaces || !mIndices || !mnVerts || !mPositions)
         return E_UNEXPECTED;
@@ -450,7 +463,7 @@ HRESULT Mesh::Clean( _In_ bool breakBowties )
         memcpy(blendIndices.get(), mBlendIndices.get(), sizeof(XMFLOAT4) * mnVerts);
     }
 
-    std::unique_ptr<XMFLOAT4 []> blendWeights;
+    std::unique_ptr<XMFLOAT4[]> blendWeights;
     if (mBlendWeights)
     {
         blendWeights.reset(new (std::nothrow) XMFLOAT4[nNewVerts]);
@@ -465,26 +478,26 @@ HRESULT Mesh::Clean( _In_ bool breakBowties )
     {
         assert(*it < mnVerts);
 
-        pos[ j ] = mPositions[ *it ];
+        pos[j] = mPositions[*it];
 
         if (norms)
         {
-            norms[ j ] = mNormals[ *it ];
+            norms[j] = mNormals[*it];
         }
 
         if (tans1)
         {
-            tans1[ j ] = mTangents[ *it ];
+            tans1[j] = mTangents[*it];
         }
 
         if (tans2)
         {
-            tans2[ j ] = mBiTangents[*it];
+            tans2[j] = mBiTangents[*it];
         }
 
         if (texcoord)
         {
-            texcoord.get() [ j] = mTexCoords[*it];
+            texcoord.get()[j] = mTexCoords[*it];
         }
 
         if (colors)
@@ -518,7 +531,7 @@ HRESULT Mesh::Clean( _In_ bool breakBowties )
 
 
 //--------------------------------------------------------------------------------------
-HRESULT Mesh::GenerateAdjacency( _In_ float epsilon )
+HRESULT Mesh::GenerateAdjacency(_In_ float epsilon)
 {
     if (!mnFaces || !mIndices || !mnVerts || !mPositions)
         return E_UNEXPECTED;
@@ -526,8 +539,8 @@ HRESULT Mesh::GenerateAdjacency( _In_ float epsilon )
     if ((uint64_t(mnFaces) * 3) >= UINT32_MAX)
         return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
-    mAdjacency.reset( new (std::nothrow) uint32_t[ mnFaces * 3 ] );
-    if ( !mAdjacency )
+    mAdjacency.reset(new (std::nothrow) uint32_t[mnFaces * 3]);
+    if (!mAdjacency)
         return E_OUTOFMEMORY;
 
     return DirectX::GenerateAdjacencyAndPointReps(mIndices.get(), mnFaces, mPositions.get(), mnVerts, epsilon, nullptr, mAdjacency.get());
@@ -535,12 +548,12 @@ HRESULT Mesh::GenerateAdjacency( _In_ float epsilon )
 
 
 //--------------------------------------------------------------------------------------
-HRESULT Mesh::ComputeNormals( _In_ DWORD flags )
+HRESULT Mesh::ComputeNormals(_In_ DWORD flags)
 {
     if (!mnFaces || !mIndices || !mnVerts || !mPositions)
         return E_UNEXPECTED;
 
-    mNormals.reset( new (std::nothrow) XMFLOAT3[ mnVerts ] );
+    mNormals.reset(new (std::nothrow) XMFLOAT3[mnVerts]);
     if (!mNormals)
         return E_OUTOFMEMORY;
 
@@ -549,7 +562,7 @@ HRESULT Mesh::ComputeNormals( _In_ DWORD flags )
 
 
 //--------------------------------------------------------------------------------------
-HRESULT Mesh::ComputeTangentFrame( _In_ bool bitangents )
+HRESULT Mesh::ComputeTangentFrame(_In_ bool bitangents)
 {
     if (!mnFaces || !mIndices || !mnVerts || !mPositions || !mNormals || !mTexCoords)
         return E_UNEXPECTED;
@@ -557,19 +570,19 @@ HRESULT Mesh::ComputeTangentFrame( _In_ bool bitangents )
     mTangents.reset();
     mBiTangents.reset();
 
-    std::unique_ptr<XMFLOAT4[]> tan1( new (std::nothrow) XMFLOAT4[mnVerts] );
+    std::unique_ptr<XMFLOAT4[]> tan1(new (std::nothrow) XMFLOAT4[mnVerts]);
     if (!tan1)
         return E_OUTOFMEMORY;
 
     std::unique_ptr<XMFLOAT3[]> tan2;
     if (bitangents)
     {
-        tan2.reset( new (std::nothrow) XMFLOAT3[mnVerts] );
+        tan2.reset(new (std::nothrow) XMFLOAT3[mnVerts]);
         if (!tan2)
             return E_OUTOFMEMORY;
 
         HRESULT hr = DirectX::ComputeTangentFrame(mIndices.get(), mnFaces, mPositions.get(), mNormals.get(), mTexCoords.get(), mnVerts,
-                                                  tan1.get(), tan2.get());
+            tan1.get(), tan2.get());
         if (FAILED(hr))
             return hr;
     }
@@ -578,13 +591,13 @@ HRESULT Mesh::ComputeTangentFrame( _In_ bool bitangents )
         mBiTangents.reset();
 
         HRESULT hr = DirectX::ComputeTangentFrame(mIndices.get(), mnFaces, mPositions.get(), mNormals.get(), mTexCoords.get(), mnVerts,
-                                                  tan1.get());
+            tan1.get());
         if (FAILED(hr))
             return hr;
     }
 
-    mTangents.swap( tan1 );
-    mBiTangents.swap( tan2 );
+    mTangents.swap(tan1);
+    mBiTangents.swap(tan2);
 
     return S_OK;
 }
@@ -592,7 +605,7 @@ HRESULT Mesh::ComputeTangentFrame( _In_ bool bitangents )
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::UpdateFaces( size_t nFaces, const uint32_t* indices )
+HRESULT Mesh::UpdateFaces(size_t nFaces, const uint32_t* indices)
 {
     if (!nFaces || !indices)
         return E_INVALIDARG;
@@ -600,13 +613,13 @@ HRESULT Mesh::UpdateFaces( size_t nFaces, const uint32_t* indices )
     if (!mnFaces || !mIndices)
         return E_UNEXPECTED;
 
-    if ( mnFaces != nFaces )
+    if (mnFaces != nFaces)
         return E_FAIL;
 
     if ((uint64_t(nFaces) * 3) >= UINT32_MAX)
         return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
-    memcpy( mIndices.get(), indices, sizeof(uint32_t) * 3 * nFaces );
+    memcpy(mIndices.get(), indices, sizeof(uint32_t) * 3 * nFaces);
 
     return S_OK;
 }
@@ -614,7 +627,7 @@ HRESULT Mesh::UpdateFaces( size_t nFaces, const uint32_t* indices )
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::UpdateAttributes( size_t nFaces, const uint32_t* attributes )
+HRESULT Mesh::UpdateAttributes(size_t nFaces, const uint32_t* attributes)
 {
     if (!nFaces || !attributes)
         return E_INVALIDARG;
@@ -622,22 +635,22 @@ HRESULT Mesh::UpdateAttributes( size_t nFaces, const uint32_t* attributes )
     if (!mnFaces || !mIndices || !mnVerts || !mPositions)
         return E_UNEXPECTED;
 
-    if ( mnFaces != nFaces )
+    if (mnFaces != nFaces)
         return E_FAIL;
 
-    if ( !mAttributes )
+    if (!mAttributes)
     {
-        std::unique_ptr<uint32_t[]> attr( new (std::nothrow) uint32_t[ nFaces ] );
-        if ( !attr )
+        std::unique_ptr<uint32_t[]> attr(new (std::nothrow) uint32_t[nFaces]);
+        if (!attr)
             return E_OUTOFMEMORY;
-        
-        memcpy( attr.get(), attributes, sizeof(uint32_t) * nFaces );
+
+        memcpy(attr.get(), attributes, sizeof(uint32_t) * nFaces);
 
         mAttributes.swap(attr);
     }
     else
     {
-        memcpy( mAttributes.get(), attributes, sizeof(uint32_t) * nFaces );
+        memcpy(mAttributes.get(), attributes, sizeof(uint32_t) * nFaces);
     }
 
     std::unique_ptr<uint32_t> remap(new (std::nothrow) uint32_t[mnFaces]);
@@ -678,7 +691,7 @@ HRESULT Mesh::UpdateUVs(size_t nVerts, const XMFLOAT2* uvs)
 
     if (!mTexCoords)
     {
-        std::unique_ptr<XMFLOAT2 []> texcoord;
+        std::unique_ptr<XMFLOAT2[]> texcoord;
         texcoord.reset(new (std::nothrow) XMFLOAT2[mnVerts]);
         if (!texcoord)
             return E_OUTOFMEMORY;
@@ -698,7 +711,7 @@ HRESULT Mesh::UpdateUVs(size_t nVerts, const XMFLOAT2* uvs)
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
+HRESULT Mesh::VertexRemap(const uint32_t* remap, size_t nNewVerts)
 {
     if (!remap || !nNewVerts)
         return E_INVALIDARG;
@@ -713,7 +726,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
     if (!pos)
         return E_OUTOFMEMORY;
 
-    HRESULT hr = UVAtlasApplyRemap(mPositions.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, pos.get() );
+    HRESULT hr = UVAtlasApplyRemap(mPositions.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, pos.get());
     if (FAILED(hr))
         return hr;
 
@@ -724,7 +737,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!norms)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mNormals.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, norms.get() );
+        hr = UVAtlasApplyRemap(mNormals.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, norms.get());
         if (FAILED(hr))
             return hr;
     }
@@ -736,7 +749,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!tans1)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mTangents.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, tans1.get() );
+        hr = UVAtlasApplyRemap(mTangents.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, tans1.get());
         if (FAILED(hr))
             return hr;
     }
@@ -748,7 +761,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!tans2)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mBiTangents.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, tans2.get() );
+        hr = UVAtlasApplyRemap(mBiTangents.get(), sizeof(XMFLOAT3), mnVerts, nNewVerts, remap, tans2.get());
         if (FAILED(hr))
             return hr;
     }
@@ -760,7 +773,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!texcoord)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mTexCoords.get(), sizeof(XMFLOAT2), mnVerts, nNewVerts, remap, texcoord.get() );
+        hr = UVAtlasApplyRemap(mTexCoords.get(), sizeof(XMFLOAT2), mnVerts, nNewVerts, remap, texcoord.get());
         if (FAILED(hr))
             return hr;
     }
@@ -772,7 +785,7 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!colors)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mColors.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, colors.get() );
+        hr = UVAtlasApplyRemap(mColors.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, colors.get());
         if (FAILED(hr))
             return hr;
     }
@@ -784,19 +797,19 @@ HRESULT Mesh::VertexRemap( const uint32_t* remap, size_t nNewVerts )
         if (!blendIndices)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mBlendIndices.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, blendIndices.get() );
+        hr = UVAtlasApplyRemap(mBlendIndices.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, blendIndices.get());
         if (FAILED(hr))
             return hr;
     }
 
-    std::unique_ptr<XMFLOAT4 []> blendWeights;
+    std::unique_ptr<XMFLOAT4[]> blendWeights;
     if (mBlendWeights)
     {
         blendWeights.reset(new (std::nothrow) XMFLOAT4[nNewVerts]);
         if (!blendWeights)
             return E_OUTOFMEMORY;
 
-        hr = UVAtlasApplyRemap(mBlendWeights.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, blendWeights.get() );
+        hr = UVAtlasApplyRemap(mBlendWeights.get(), sizeof(XMFLOAT4), mnVerts, nNewVerts, remap, blendWeights.get());
         if (FAILED(hr))
             return hr;
     }
@@ -824,8 +837,24 @@ HRESULT Mesh::ReverseWinding()
     auto iptr = mIndices.get();
     for (size_t j = 0; j < mnFaces; ++j)
     {
-        std::swap( *iptr, *(iptr + 2) );
+        std::swap(*iptr, *(iptr + 2));
         iptr += 3;
+    }
+
+    return S_OK;
+}
+
+
+//--------------------------------------------------------------------------------------
+HRESULT Mesh::InvertUTexCoord()
+{
+    if (!mTexCoords)
+        return E_UNEXPECTED;
+
+    auto tptr = mTexCoords.get();
+    for (size_t j = 0; j < mnVerts; ++j, ++tptr)
+    {
+        tptr->x = 1.f - tptr->x;
     }
 
     return S_OK;
@@ -895,7 +924,7 @@ HRESULT Mesh::VisualizeUVs()
         XMFLOAT3* nptr = mNormals.get();
         for (size_t j = 0; j < mnVerts; ++j)
         {
-            XMStoreFloat3( nptr, g_XMIdentityR2 );
+            XMStoreFloat3(nptr, g_XMIdentityR2);
             ++nptr;
         }
     }
@@ -914,7 +943,7 @@ bool Mesh::Is16BitIndexBuffer() const
         return false;
 
     const uint32_t* iptr = mIndices.get();
-    for (size_t j = 0; j < (mnFaces * 3); ++j )
+    for (size_t j = 0; j < (mnFaces * 3); ++j)
     {
         uint32_t index = *(iptr++);
         if (index != uint32_t(-1)
@@ -974,7 +1003,7 @@ HRESULT Mesh::GetVertexBuffer(_Inout_ DirectX::VBWriter& writer) const
     if (!mnVerts || !mPositions)
         return E_UNEXPECTED;
 
-    HRESULT hr = writer.Write(mPositions.get(), "SV_Position", 0, mnVerts );
+    HRESULT hr = writer.Write(mPositions.get(), "SV_Position", 0, mnVerts);
     if (FAILED(hr))
         return hr;
 
@@ -1085,31 +1114,31 @@ namespace VBO
 
     static_assert(sizeof(header_t) == 8, "VBO header size mismatch");
     static_assert(sizeof(vertex_t) == 32, "VBO vertex size mismatch");
-}; // namespace
+} // namespace
 
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::ExportToVBO( const wchar_t* szFileName ) const
+HRESULT Mesh::ExportToVBO(const wchar_t* szFileName) const
 {
     using namespace VBO;
 
-    if ( !szFileName )
+    if (!szFileName)
         return E_INVALIDARG;
 
     if (!mnFaces || !mIndices || !mnVerts || !mPositions || !mNormals || !mTexCoords)
         return E_UNEXPECTED;
 
-    if ( ( uint64_t(mnFaces) * 3 ) >= UINT32_MAX )
-        return HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW );
+    if ((uint64_t(mnFaces) * 3) >= UINT32_MAX)
+        return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
-    if ( mnVerts >= UINT16_MAX )
-        return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED );
+    if (mnVerts >= UINT16_MAX)
+        return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
 
     // Setup VBO header
     header_t header;
-    header.numVertices = static_cast<uint32_t>( mnVerts );
-    header.numIndices = static_cast<uint32_t>( mnFaces*3 );
+    header.numVertices = static_cast<uint32_t>(mnVerts);
+    header.numIndices = static_cast<uint32_t>(mnFaces * 3);
 
     // Setup vertices/indices for VBO
 
@@ -1155,11 +1184,11 @@ HRESULT Mesh::ExportToVBO( const wchar_t* szFileName ) const
     if (!hFile)
         return HRESULT_FROM_WIN32(GetLastError());
 
-    HRESULT hr = write_file( hFile.get(), header );
+    HRESULT hr = write_file(hFile.get(), header);
     if (FAILED(hr))
         return hr;
 
-    DWORD vertSize = static_cast<DWORD>( sizeof(vertex_t) * header.numVertices );
+    DWORD vertSize = static_cast<DWORD>(sizeof(vertex_t) * header.numVertices);
 
     DWORD bytesWritten;
     if (!WriteFile(hFile.get(), vb.get(), vertSize, &bytesWritten, nullptr))
@@ -1168,7 +1197,7 @@ HRESULT Mesh::ExportToVBO( const wchar_t* szFileName ) const
     if (bytesWritten != vertSize)
         return E_FAIL;
 
-    DWORD indexSize = static_cast<DWORD>( sizeof(uint16_t) * header.numIndices );
+    DWORD indexSize = static_cast<DWORD>(sizeof(uint16_t) * header.numIndices);
 
     if (!WriteFile(hFile.get(), ib.get(), indexSize, &bytesWritten, nullptr))
         return HRESULT_FROM_WIN32(GetLastError());
@@ -1182,7 +1211,7 @@ HRESULT Mesh::ExportToVBO( const wchar_t* szFileName ) const
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::CreateFromVBO( const wchar_t* szFileName, std::unique_ptr<Mesh>& result )
+HRESULT Mesh::CreateFromVBO(const wchar_t* szFileName, std::unique_ptr<Mesh>& result)
 {
     using namespace VBO;
 
@@ -1231,17 +1260,17 @@ HRESULT Mesh::CreateFromVBO( const wchar_t* szFileName, std::unique_ptr<Mesh>& r
     if (!header.numVertices || !header.numIndices)
         return E_FAIL;
 
-    result.reset( new (std::nothrow) Mesh );
+    result.reset(new (std::nothrow) Mesh);
     if (!result)
         return E_OUTOFMEMORY;
 
     // Read vertices/indices from VBO
     std::unique_ptr<vertex_t[]> vb(new (std::nothrow) vertex_t[header.numVertices]);
-    std::unique_ptr<uint16_t[]> ib( new (std::nothrow) uint16_t[ header.numIndices ] );
+    std::unique_ptr<uint16_t[]> ib(new (std::nothrow) uint16_t[header.numIndices]);
     if (!vb || !ib)
         return E_OUTOFMEMORY;
 
-    DWORD vertSize = static_cast<DWORD>( sizeof(vertex_t) * header.numVertices );
+    DWORD vertSize = static_cast<DWORD>(sizeof(vertex_t) * header.numVertices);
 
     if (!ReadFile(hFile.get(), vb.get(), vertSize, &bytesRead, nullptr))
     {
@@ -1251,7 +1280,7 @@ HRESULT Mesh::CreateFromVBO( const wchar_t* szFileName, std::unique_ptr<Mesh>& r
     if (bytesRead != vertSize)
         return E_FAIL;
 
-    DWORD indexSize = static_cast<DWORD>(sizeof(uint16_t) * header.numIndices );
+    DWORD indexSize = static_cast<DWORD>(sizeof(uint16_t) * header.numIndices);
 
     if (!ReadFile(hFile.get(), ib.get(), indexSize, &bytesRead, nullptr))
     {
@@ -1271,9 +1300,9 @@ HRESULT Mesh::CreateFromVBO( const wchar_t* szFileName, std::unique_ptr<Mesh>& r
     auto vptr = vb.get();
     for (size_t j = 0; j < header.numVertices; ++j, ++vptr)
     {
-        pos[ j ] = vptr->position;
-        norm[ j ] = vptr->normal;
-        texcoord[ j] = vptr->textureCoordinate;
+        pos[j] = vptr->position;
+        norm[j] = vptr->normal;
+        texcoord[j] = vptr->textureCoordinate;
     }
 
     // Copy IB to result
@@ -1286,9 +1315,9 @@ HRESULT Mesh::CreateFromVBO( const wchar_t* szFileName, std::unique_ptr<Mesh>& r
     {
         uint16_t index = *iptr;
         if (index == uint16_t(-1))
-            indices[ j ] = uint32_t(-1);
+            indices[j] = uint32_t(-1);
         else
-            indices[ j ] = index;
+            indices[j] = index;
     }
 
     result->mPositions.swap(pos);
@@ -1446,7 +1475,7 @@ namespace VSD3DStarter
 
 #pragma pack(pop)
 
-}; // namespace
+} // namespace
 
 static_assert(sizeof(VSD3DStarter::Material) == 132, "CMO Mesh structure size incorrect");
 static_assert(sizeof(VSD3DStarter::SubMesh) == 20, "CMO Mesh structure size incorrect");
@@ -1479,15 +1508,15 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
     if (mnVerts >= UINT16_MAX)
         return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
 
-    UINT nIndices = static_cast<UINT>( mnFaces * 3 );
+    UINT nIndices = static_cast<UINT>(mnFaces * 3);
 
     // Setup vertices/indices for CMO
-    std::unique_ptr<Vertex []> vb(new (std::nothrow) Vertex[mnVerts]);
-    std::unique_ptr<uint16_t []> ib(new (std::nothrow) uint16_t[nIndices]);
+    std::unique_ptr<Vertex[]> vb(new (std::nothrow) Vertex[mnVerts]);
+    std::unique_ptr<uint16_t[]> ib(new (std::nothrow) uint16_t[nIndices]);
     if (!vb || !ib)
         return E_OUTOFMEMORY;
 
-    std::unique_ptr<SkinningVertex []> vbSkin;
+    std::unique_ptr<SkinningVertex[]> vbSkin;
     if (mBlendIndices && mBlendWeights)
     {
         vbSkin.reset(new (std::nothrow) SkinningVertex[mnVerts]);
@@ -1517,12 +1546,12 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
 
     // Copy to SkinVB
     auto sptr = vbSkin.get();
-    if ( sptr )
+    if (sptr)
     {
         for (size_t j = 0; j < mnVerts; ++j, ++sptr)
         {
             XMVECTOR v = XMLoadFloat4(&mBlendIndices[j]);
-            XMStoreUInt4( reinterpret_cast<XMUINT4*>( &sptr->boneIndex[0] ), v);
+            XMStoreUInt4(reinterpret_cast<XMUINT4*>(&sptr->boneIndex[0]), v);
 
             const XMFLOAT4* w = &mBlendWeights[j];
             sptr->boneWeight[0] = w->x;
@@ -1599,9 +1628,9 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
     {
         auto& m = materials[j];
 
-        if ( !m.name.empty() )
+        if (!m.name.empty())
         {
-            hr = write_file_string(hFile.get(), m.name.c_str() );
+            hr = write_file_string(hFile.get(), m.name.c_str());
         }
         else
         {
@@ -1612,8 +1641,7 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
         if (FAILED(hr))
             return hr;
 
-        VSD3DStarter::Material mdata;
-        memset( &mdata, 0, sizeof(mdata) );
+        VSD3DStarter::Material mdata = {};
 
         mdata.Ambient.x = m.ambientColor.x;
         mdata.Ambient.y = m.ambientColor.y;
@@ -1630,7 +1658,7 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
             mdata.Specular.x = m.specularColor.x;
             mdata.Specular.y = m.specularColor.y;
             mdata.Specular.z = m.specularColor.z;
-            mdata.SpecularPower = ( m.specularPower <= 0.f ) ? 16.f : m.specularPower;
+            mdata.SpecularPower = (m.specularPower <= 0.f) ? 16.f : m.specularPower;
         }
         else
         {
@@ -1661,13 +1689,13 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
         if (FAILED(hr))
             return hr;
 
-        hr = write_file_string(hFile.get(), m.texture.c_str() );
+        hr = write_file_string(hFile.get(), m.texture.c_str());
         if (FAILED(hr))
             return hr;
 
         for (size_t k = 1; k < MAX_TEXTURE; ++k)
         {
-            hr = write_file_string(hFile.get(), L"" );
+            hr = write_file_string(hFile.get(), L"");
             if (FAILED(hr))
                 return hr;
         }
@@ -1697,8 +1725,8 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
 
             smesh.IndexBufferIndex = 0;
             smesh.VertexBufferIndex = 0;
-            smesh.StartIndex = static_cast<UINT>( startIndex );
-            smesh.PrimCount = static_cast<UINT>( it->second );
+            smesh.StartIndex = static_cast<UINT>(startIndex);
+            smesh.PrimCount = static_cast<UINT>(it->second);
             hr = write_file(hFile.get(), smesh);
             if (FAILED(hr))
                 return hr;
@@ -1706,7 +1734,7 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
             if ((startIndex + (it->second * 3)) > mnFaces * 3)
                 return E_FAIL;
 
-            startIndex += smesh.PrimCount * 3;
+            startIndex += static_cast<size_t>(uint64_t(smesh.PrimCount) * 3);
         }
     }
     else
@@ -1753,7 +1781,7 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
     if (FAILED(hr))
         return hr;
 
-    n = static_cast<UINT>( mnVerts );
+    n = static_cast<UINT>(mnVerts);
     hr = write_file(hFile.get(), n);
     if (FAILED(hr))
         return hr;
@@ -1767,7 +1795,7 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
         return E_FAIL;
 
     // Write skinning vertices (one SkinVB shared across submeshes)
-    if ( vbSkin )
+    if (vbSkin)
     {
         n = 1;
         hr = write_file(hFile.get(), n);
@@ -1826,357 +1854,15 @@ HRESULT Mesh::ExportToCMO(const wchar_t* szFileName, size_t nMaterials, const Ma
 
     return S_OK;
 }
-    
+
 
 
 //======================================================================================
 // SDKMESH
 //======================================================================================
 
-//--------------------------------------------------------------------------------------
-// SDKMESH format is generated by the legacy DirectX SDK's Content Exporter and
-// originally rendered by the DXUT helper class SDKMesh
-//
-// http://go.microsoft.com/fwlink/?LinkId=226208
-//--------------------------------------------------------------------------------------
-namespace DXUT
-{
-    // .SDKMESH files
-
-    // SDKMESH_HEADER
-    // SDKMESH_VERTEX_BUFFER_HEADER header->VertexStreamHeadersOffset
-    // SDKMESH_INDEX_BUFFER_HEADER  header->IndexStreamHeadersOffset
-    // SDKMESH_MESH                 header->MeshDataOffset
-    // SDKMESH_SUBSET               header->SubsetDataOffset
-    // SDKMESH_FRAME                header->FrameDataOffset
-    // SDKMESH_MATERIAL             header->MaterialDataOffset
-    // [header->NonBufferDataSize]
-    // { [ header->NumVertexBuffers]
-    //      VB data
-    // }
-    // { [ header->NumIndexBuffers]
-    //      IB data
-    // }
-
-
-    // .SDDKANIM files
-
-    // SDKANIMATION_FILE_HEADER
-    // BYTE[] - Length of fileheader->AnimationDataSize
-
-    // .SDKMESH uses Direct3D 9 decls, but only a subset of these is ever generated by the legacy DirectX SDK Content Exporter
-
-    // D3DDECLUSAGE_POSITION / D3DDECLTYPE_FLOAT3
-    // (D3DDECLUSAGE_BLENDWEIGHT / D3DDECLTYPE_UBYTE4N
-    // D3DDECLUSAGE_BLENDINDICES / D3DDECLTYPE_UBYTE4)?
-    // (D3DDECLUSAGE_NORMAL / D3DDECLTYPE_FLOAT3 or D3DDECLTYPE_FLOAT16_4)?
-    // (D3DDECLUSAGE_COLOR / D3DDECLTYPE_D3DCOLOR)?
-    // (D3DDECLUSAGE_TEXCOORD / D3DDECLTYPE_FLOAT1, D3DDECLTYPE_FLOAT2 or D3DDECLTYPE_FLOAT16_2, D3DDECLTYPE_FLOAT3 or D3DDECLTYPE_FLOAT16_4, D3DDECLTYPE_FLOAT4 or D3DDECLTYPE_FLOAT16_4)*
-    // (D3DDECLUSAGE_TANGENT / D3DDECLTYPE_FLOAT3 or D3DDECLTYPE_FLOAT16_4)?
-    // (D3DDECLUSAGE_BINORMAL / D3DDECLTYPE_FLOAT3 or D3DDECLTYPE_FLOAT16_4)?
-
-    enum D3DDECLUSAGE
-    {
-        D3DDECLUSAGE_POSITION = 0,
-        D3DDECLUSAGE_BLENDWEIGHT = 1,
-        D3DDECLUSAGE_BLENDINDICES = 2,
-        D3DDECLUSAGE_NORMAL = 3,
-        D3DDECLUSAGE_TEXCOORD = 5,
-        D3DDECLUSAGE_TANGENT = 6,
-        D3DDECLUSAGE_BINORMAL = 7,
-        D3DDECLUSAGE_COLOR = 10,
-    };
-
-    enum D3DDECLTYPE
-    {
-        D3DDECLTYPE_FLOAT1 = 0,  // 1D float expanded to (value, 0., 0., 1.)
-        D3DDECLTYPE_FLOAT2 = 1,  // 2D float expanded to (value, value, 0., 1.)
-        D3DDECLTYPE_FLOAT3 = 2,  // 3D float expanded to (value, value, value, 1.)
-        D3DDECLTYPE_FLOAT4 = 3,  // 4D float
-        D3DDECLTYPE_D3DCOLOR = 4,  // 4D packed unsigned bytes mapped to 0. to 1. range
-        // Input is in D3DCOLOR format (ARGB) expanded to (R, G, B, A)
-        D3DDECLTYPE_UBYTE4 = 5,  // 4D unsigned byte
-        D3DDECLTYPE_UBYTE4N = 8,  // Each of 4 bytes is normalized by dividing to 255.0
-        D3DDECLTYPE_DEC3N = 14,  // 3D signed 10 10 10 format normalized and expanded to (v[0]/511.0, v[1]/511.0, v[2]/511.0, 1)
-        D3DDECLTYPE_FLOAT16_2 = 15,  // Two 16-bit floating point values, expanded to (value, value, 0, 1)
-        D3DDECLTYPE_FLOAT16_4 = 16,  // Four 16-bit floating point values
-
-        D3DDECLTYPE_UNUSED = 17,  // When the type field in a decl is unused.
-    };
-
-#pragma pack(push,4)
-
-    struct D3DVERTEXELEMENT9
-    {
-        WORD    Stream;     // Stream index
-        WORD    Offset;     // Offset in the stream in bytes
-        BYTE    Type;       // Data type
-        BYTE    Method;     // Processing method
-        BYTE    Usage;      // Semantics
-        BYTE    UsageIndex; // Semantic index
-    };
-
-#pragma pack(pop)
-
-    //--------------------------------------------------------------------------------------
-    // Hard Defines for the various structures
-    //--------------------------------------------------------------------------------------
-    const uint32_t SDKMESH_FILE_VERSION = 101;
-    const uint32_t MAX_VERTEX_ELEMENTS = 32;
-    const uint32_t MAX_VERTEX_STREAMS = 16;
-    const uint32_t MAX_FRAME_NAME = 100;
-    const uint32_t MAX_MESH_NAME = 100;
-    const uint32_t MAX_SUBSET_NAME = 100;
-    const uint32_t MAX_MATERIAL_NAME = 100;
-    const uint32_t MAX_TEXTURE_NAME = MAX_PATH;
-    const uint32_t MAX_MATERIAL_PATH = MAX_PATH;
-    const uint32_t INVALID_FRAME = uint32_t(-1);
-    const uint32_t INVALID_MESH = uint32_t(-1);
-    const uint32_t INVALID_MATERIAL = uint32_t(-1);
-    const uint32_t INVALID_SUBSET = uint32_t(-1);
-    const uint32_t INVALID_ANIMATION_DATA = uint32_t(-1);
-    const uint32_t INVALID_SAMPLER_SLOT = uint32_t(-1);
-    const uint32_t ERROR_RESOURCE_VALUE = 1;
-
-    template<typename TYPE> bool IsErrorResource(TYPE data)
-    {
-        if ((TYPE) ERROR_RESOURCE_VALUE == data)
-            return true;
-        return false;
-    }
-
-    //--------------------------------------------------------------------------------------
-    // Enumerated Types.  These will have mirrors in both D3D9 and D3D11
-    //--------------------------------------------------------------------------------------
-    enum SDKMESH_PRIMITIVE_TYPE
-    {
-        PT_TRIANGLE_LIST = 0,
-        PT_TRIANGLE_STRIP,
-        PT_LINE_LIST,
-        PT_LINE_STRIP,
-        PT_POINT_LIST,
-        PT_TRIANGLE_LIST_ADJ,
-        PT_TRIANGLE_STRIP_ADJ,
-        PT_LINE_LIST_ADJ,
-        PT_LINE_STRIP_ADJ,
-        PT_QUAD_PATCH_LIST,
-        PT_TRIANGLE_PATCH_LIST,
-    };
-
-    enum SDKMESH_INDEX_TYPE
-    {
-        IT_16BIT = 0,
-        IT_32BIT,
-    };
-
-    enum FRAME_TRANSFORM_TYPE
-    {
-        FTT_RELATIVE = 0,
-        FTT_ABSOLUTE,		//This is not currently used but is here to support absolute transformations in the future
-    };
-
-    //--------------------------------------------------------------------------------------
-    // Structures.
-    //--------------------------------------------------------------------------------------
-#pragma pack(push,8)
-
-    struct SDKMESH_HEADER
-    {
-        //Basic Info and sizes
-        UINT Version;
-        BYTE IsBigEndian;
-        UINT64 HeaderSize;
-        UINT64 NonBufferDataSize;
-        UINT64 BufferDataSize;
-
-        //Stats
-        UINT NumVertexBuffers;
-        UINT NumIndexBuffers;
-        UINT NumMeshes;
-        UINT NumTotalSubsets;
-        UINT NumFrames;
-        UINT NumMaterials;
-
-        //Offsets to Data
-        UINT64 VertexStreamHeadersOffset;
-        UINT64 IndexStreamHeadersOffset;
-        UINT64 MeshDataOffset;
-        UINT64 SubsetDataOffset;
-        UINT64 FrameDataOffset;
-        UINT64 MaterialDataOffset;
-    };
-
-    struct SDKMESH_VERTEX_BUFFER_HEADER
-    {
-        UINT64 NumVertices;
-        UINT64 SizeBytes;
-        UINT64 StrideBytes;
-        D3DVERTEXELEMENT9 Decl[MAX_VERTEX_ELEMENTS];
-        union
-        {
-            UINT64 DataOffset;
-            ID3D11Buffer* pVB11;
-        };
-    };
-
-    struct SDKMESH_INDEX_BUFFER_HEADER
-    {
-        UINT64 NumIndices;
-        UINT64 SizeBytes;
-        UINT IndexType;
-        union
-        {
-            UINT64 DataOffset;
-            ID3D11Buffer* pIB11;
-        };
-    };
-
-    struct SDKMESH_MESH
-    {
-        char Name[MAX_MESH_NAME];
-        BYTE NumVertexBuffers;
-        UINT VertexBuffers[MAX_VERTEX_STREAMS];
-        UINT IndexBuffer;
-        UINT NumSubsets;
-        UINT NumFrameInfluences; //aka bones
-
-        DirectX::XMFLOAT3 BoundingBoxCenter;
-        DirectX::XMFLOAT3 BoundingBoxExtents;
-
-        union
-        {
-            UINT64 SubsetOffset;
-            INT* pSubsets;
-        };
-        union
-        {
-            UINT64 FrameInfluenceOffset;
-            UINT* pFrameInfluences;
-        };
-    };
-
-    struct SDKMESH_SUBSET
-    {
-        char Name[MAX_SUBSET_NAME];
-        UINT MaterialID;
-        UINT PrimitiveType;
-        UINT64 IndexStart;
-        UINT64 IndexCount;
-        UINT64 VertexStart;
-        UINT64 VertexCount;
-    };
-
-    struct SDKMESH_FRAME
-    {
-        char Name[MAX_FRAME_NAME];
-        UINT Mesh;
-        UINT ParentFrame;
-        UINT ChildFrame;
-        UINT SiblingFrame;
-        DirectX::XMFLOAT4X4 Matrix;
-        UINT AnimationDataIndex;		//Used to index which set of keyframes transforms this frame
-    };
-
-    struct SDKMESH_MATERIAL
-    {
-        char    Name[MAX_MATERIAL_NAME];
-
-        // Use MaterialInstancePath
-        char    MaterialInstancePath[MAX_MATERIAL_PATH];
-
-        // Or fall back to d3d8-type materials
-        char    DiffuseTexture[MAX_TEXTURE_NAME];
-        char    NormalTexture[MAX_TEXTURE_NAME];
-        char    SpecularTexture[MAX_TEXTURE_NAME];
-
-        DirectX::XMFLOAT4 Diffuse;
-        DirectX::XMFLOAT4 Ambient;
-        DirectX::XMFLOAT4 Specular;
-        DirectX::XMFLOAT4 Emissive;
-        FLOAT Power;
-
-        union
-        {
-            UINT64 Force64_1;			//Force the union to 64bits
-            ID3D11Texture2D* pDiffuseTexture11;
-        };
-        union
-        {
-            UINT64 Force64_2;			//Force the union to 64bits
-            ID3D11Texture2D* pNormalTexture11;
-        };
-        union
-        {
-            UINT64 Force64_3;			//Force the union to 64bits
-            ID3D11Texture2D* pSpecularTexture11;
-        };
-
-        union
-        {
-            UINT64 Force64_4;			//Force the union to 64bits
-            ID3D11ShaderResourceView* pDiffuseRV11;
-        };
-        union
-        {
-            UINT64 Force64_5;		    //Force the union to 64bits
-            ID3D11ShaderResourceView* pNormalRV11;
-        };
-        union
-        {
-            UINT64 Force64_6;			//Force the union to 64bits
-            ID3D11ShaderResourceView* pSpecularRV11;
-        };
-    };
-
-    struct SDKANIMATION_FILE_HEADER
-    {
-        UINT Version;
-        BYTE IsBigEndian;
-        UINT FrameTransformType;
-        UINT NumFrames;
-        UINT NumAnimationKeys;
-        UINT AnimationFPS;
-        UINT64 AnimationDataSize;
-        UINT64 AnimationDataOffset;
-    };
-
-    struct SDKANIMATION_DATA
-    {
-        DirectX::XMFLOAT3 Translation;
-        DirectX::XMFLOAT4 Orientation;
-        DirectX::XMFLOAT3 Scaling;
-    };
-
-    struct SDKANIMATION_FRAME_DATA
-    {
-        char FrameName[MAX_FRAME_NAME];
-        union
-        {
-            UINT64 DataOffset;
-            SDKANIMATION_DATA* pAnimationData;
-        };
-    };
-
-#pragma pack(pop)
-
-}; // namespace
-
-static_assert(sizeof(DXUT::D3DVERTEXELEMENT9) == 8, "Direct3D9 Decl structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_HEADER) == 104, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_VERTEX_BUFFER_HEADER) == 288, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_INDEX_BUFFER_HEADER) == 32, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_MESH) == 224, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_SUBSET) == 144, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_FRAME) == 184, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKMESH_MATERIAL) == 1256, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKANIMATION_FILE_HEADER) == 40, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKANIMATION_DATA) == 40, "SDK Mesh structure size incorrect");
-static_assert(sizeof(DXUT::SDKANIMATION_FRAME_DATA) == 112, "SDK Mesh structure size incorrect");
-
-
-//--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, const Material* materials) const
+HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, const Material* materials, bool force32bit, bool version2) const
 {
     using namespace DXUT;
 
@@ -2193,7 +1879,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
         return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
 
     // Build input layout/vertex decalaration
-    static const D3D11_INPUT_ELEMENT_DESC s_elements [] =
+    static const D3D11_INPUT_ELEMENT_DESC s_elements[] =
     {
         { "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }, // 0
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }, // 1
@@ -2205,7 +1891,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
         { "BLENDWEIGHT", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }, // 7
     };
 
-    static const D3DVERTEXELEMENT9 s_decls [] =
+    static const D3DVERTEXELEMENT9 s_decls[] =
     {
         { 0, 0, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_POSITION, 0 }, // 0
         { 0, 0, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_NORMAL, 0 }, // 1
@@ -2300,7 +1986,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
     if (!vb)
         return E_OUTOFMEMORY;
 
-    vbHeader.SizeBytes = mnVerts * stride;
+    vbHeader.SizeBytes = uint64_t(mnVerts) * uint64_t(stride);
     vbHeader.StrideBytes = stride;
 
     {
@@ -2321,12 +2007,12 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
     // Build index buffer
     SDKMESH_INDEX_BUFFER_HEADER ibHeader = {};
-    ibHeader.NumIndices = mnFaces * 3;
+    ibHeader.NumIndices = uint64_t(mnFaces) * 3;
 
     std::unique_ptr<uint16_t[]> ib16;
-    if (Is16BitIndexBuffer())
+    if (!force32bit && Is16BitIndexBuffer())
     {
-        ibHeader.SizeBytes = mnFaces * 3 * sizeof(uint16_t);
+        ibHeader.SizeBytes = uint64_t(mnFaces) * 3 * sizeof(uint16_t);
         ibHeader.IndexType = IT_16BIT;
 
         ib16 = GetIndexBuffer16();
@@ -2335,13 +2021,136 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
     }
     else
     {
-        ibHeader.SizeBytes = mnFaces * 3 * sizeof(uint32_t);
+        ibHeader.SizeBytes = uint64_t(mnFaces) * 3 * sizeof(uint32_t);
         ibHeader.IndexType = IT_32BIT;
     }
 
     // Build materials buffer
     std::unique_ptr<SDKMESH_MATERIAL[]> mats;
-    if (!nMaterials)
+    if (version2)
+    {
+        if (!nMaterials)
+        {
+            mats.reset(new (std::nothrow) SDKMESH_MATERIAL[1]);
+            if (!mats)
+                return E_OUTOFMEMORY;
+
+            auto mat2 = reinterpret_cast<SDKMESH_MATERIAL_V2*>(mats.get());
+            memset(mat2, 0, sizeof(SDKMESH_MATERIAL_V2));
+
+            strcpy_s(mat2->Name, "default");
+            mat2->Alpha = 1.f;
+        }
+        else
+        {
+            mats.reset(new (std::nothrow) SDKMESH_MATERIAL[nMaterials]);
+            if (!mats)
+                return E_OUTOFMEMORY;
+
+            for (size_t j = 0; j < nMaterials; ++j)
+            {
+                auto m0 = &materials[j];
+                auto m2 = reinterpret_cast<SDKMESH_MATERIAL_V2*>(&mats[j]);
+
+                memset(m2, 0, sizeof(SDKMESH_MATERIAL_V2));
+
+                if (!m0->name.empty())
+                {
+                    int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                        m0->name.c_str(), -1,
+                        m2->Name, MAX_MATERIAL_NAME, nullptr, FALSE);
+                    if (!result)
+                    {
+                        *m2->Name = 0;
+                    }
+                }
+
+                m2->Alpha = m0->alpha;
+
+                if (!m0->texture.empty())
+                {
+                    int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                        m0->texture.c_str(), -1,
+                        m2->AlbetoTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                    if (!result)
+                    {
+                        *m2->AlbetoTexture = 0;
+                    }
+                }
+
+                // Derive other PBR texture names from base texture
+                {
+                    char drive[_MAX_DRIVE] = {};
+                    char dir[MAX_PATH] = {};
+                    char fname[_MAX_FNAME] = {};
+                    char ext[_MAX_EXT] = {};
+                    _splitpath_s(m2->AlbetoTexture, drive, dir, fname, ext);
+
+                    std::string basename = fname;
+                    size_t pos = basename.find_last_of('_');
+                    if (pos != std::string::npos)
+                    {
+                        basename = basename.substr(0, pos);
+                    }
+
+                    if (!basename.empty())
+                    {
+                        strcpy_s(fname, basename.c_str());
+                        strcat_s(fname, "_normal");
+                        _makepath_s(m2->NormalTexture, drive, dir, fname, ext);
+
+                        strcpy_s(fname, basename.c_str());
+                        strcat_s(fname, "_occlusionRoughnessMetallic");
+                        _makepath_s(m2->RMATexture, drive, dir, fname, ext);
+
+                        if (m0->emissiveColor.x > 0 || m0->emissiveColor.y > 0 || m0->emissiveColor.z > 0)
+                        {
+                            strcpy_s(fname, basename.c_str());
+                            strcat_s(fname, "_emissive");
+                            _makepath_s(m2->EmissiveTexture, drive, dir, fname, ext);
+                        }
+                    }
+                }
+
+                // Allow normal texture material property to override derived name
+                if (!m0->normalTexture.empty())
+                {
+                    int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                        m0->normalTexture.c_str(), -1,
+                        m2->NormalTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                    if (!result)
+                    {
+                        *m2->NormalTexture = 0;
+                    }
+                }
+
+                // Allow emissive texture material property to override drived name
+                if (!m0->emissiveTexture.empty())
+                {
+                    int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                        m0->emissiveTexture.c_str(), -1,
+                        m2->EmissiveTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                    if (!result)
+                    {
+                        *m2->EmissiveTexture = 0;
+                    }
+                }
+
+                // Allow RMA texture material property to override drived name
+                if (!m0->rmaTexture.empty())
+                {
+                    int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                        m0->rmaTexture.c_str(), -1,
+                        m2->RMATexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                    if (!result)
+                    {
+                        *m2->RMATexture = 0;
+                    }
+                }
+            }
+        }
+    }
+    else if (!nMaterials)
     {
         mats.reset(new (std::nothrow) SDKMESH_MATERIAL[1]);
         if (!mats)
@@ -2365,22 +2174,50 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
             auto m0 = &materials[j];
             auto m = &mats[j];
 
-            memset( m, 0, sizeof(SDKMESH_MATERIAL) );
+            memset(m, 0, sizeof(SDKMESH_MATERIAL));
 
-            int result = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS,
-                                             m0->name.c_str(), -1,
-                                             m->Name, MAX_MATERIAL_NAME, nullptr, FALSE);
-            if (!result)
+            if (!m0->name.empty())
             {
-                *m->Name = 0;
+                int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                    m0->name.c_str(), -1,
+                    m->Name, MAX_MATERIAL_NAME, nullptr, FALSE);
+                if (!result)
+                {
+                    *m->Name = 0;
+                }
             }
 
-            result = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS,
-                                         m0->texture.c_str(), -1,
-                                         m->DiffuseTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
-            if (!result)
+            if (!m0->texture.empty())
             {
-                *m->DiffuseTexture = 0;
+                int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                    m0->texture.c_str(), -1,
+                    m->DiffuseTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                if (!result)
+                {
+                    *m->DiffuseTexture = 0;
+                }
+            }
+
+            if (!m0->normalTexture.empty())
+            {
+                int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                    m0->normalTexture.c_str(), -1,
+                    m->NormalTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                if (!result)
+                {
+                    *m->NormalTexture = 0;
+                }
+            }
+
+            if (!m0->specularTexture.empty())
+            {
+                int result = WideCharToMultiByte(CP_UTF8, WC_NO_BEST_FIT_CHARS,
+                    m0->specularTexture.c_str(), -1,
+                    m->SpecularTexture, MAX_TEXTURE_NAME, nullptr, FALSE);
+                if (!result)
+                {
+                    *m->SpecularTexture = 0;
+                }
             }
 
             m->Diffuse.x = m0->diffuseColor.x;
@@ -2398,7 +2235,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
                 m->Specular.x = m0->specularColor.x;
                 m->Specular.y = m0->specularColor.y;
                 m->Specular.z = m0->specularColor.z;
-                m->Power = ( m0->specularPower <= 0.f ) ? 16.f : m0->specularPower;
+                m->Power = (m0->specularPower <= 0.f) ? 16.f : m0->specularPower;
             }
             else
             {
@@ -2430,11 +2267,11 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
             s.PrimitiveType = PT_TRIANGLE_LIST;
             s.IndexStart = startIndex;
-            s.IndexCount = it->second * 3;
+            s.IndexCount = uint64_t(it->second) * 3;
             s.VertexCount = mnVerts;
             submeshes.push_back(s);
 
-            if ((startIndex + s.IndexCount) > mnFaces * 3)
+            if ((startIndex + s.IndexCount) > uint64_t(mnFaces) * 3)
                 return E_FAIL;
 
             startIndex += s.IndexCount;
@@ -2444,7 +2281,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
     {
         SDKMESH_SUBSET s = {};
         s.PrimitiveType = PT_TRIANGLE_LIST;
-        s.IndexCount = mnFaces * 3;
+        s.IndexCount = uint64_t(mnFaces) * 3;
         s.VertexCount = mnVerts;
         subsetArray.push_back(0);
         submeshes.push_back(s);
@@ -2461,32 +2298,32 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
     // Write file header
     SDKMESH_HEADER header = {};
-    header.Version = SDKMESH_FILE_VERSION;
+    header.Version = (version2) ? SDKMESH_FILE_VERSION_V2 : SDKMESH_FILE_VERSION;
     header.IsBigEndian = 0;
 
     header.NumVertexBuffers = 1;
     header.NumIndexBuffers = 1;
     header.NumMeshes = 1;
-    header.NumTotalSubsets = static_cast<UINT>( submeshes.size() );
+    header.NumTotalSubsets = static_cast<UINT>(submeshes.size());
     header.NumFrames = 1;
     header.NumMaterials = (nMaterials > 0) ? static_cast<UINT>(nMaterials) : 1;
 
     header.HeaderSize = sizeof(SDKMESH_HEADER) + sizeof(SDKMESH_VERTEX_BUFFER_HEADER) + sizeof(SDKMESH_INDEX_BUFFER_HEADER);
 
     size_t staticDataSize = sizeof(SDKMESH_MESH)
-                            + header.NumTotalSubsets * sizeof(SDKMESH_SUBSET)
-                            + sizeof(SDKMESH_FRAME)
-                            + header.NumMaterials * sizeof(SDKMESH_MATERIAL);
+        + header.NumTotalSubsets * sizeof(SDKMESH_SUBSET)
+        + sizeof(SDKMESH_FRAME)
+        + header.NumMaterials * sizeof(SDKMESH_MATERIAL);
 
-    header.NonBufferDataSize = staticDataSize + subsetArray.size() * sizeof(UINT) + sizeof(UINT);
+    header.NonBufferDataSize = uint64_t(staticDataSize) + uint64_t(subsetArray.size()) * sizeof(UINT) + sizeof(UINT);
 
-    header.BufferDataSize = roundup4k( vbHeader.SizeBytes ) + roundup4k( ibHeader.SizeBytes );
+    header.BufferDataSize = roundup4k(vbHeader.SizeBytes) + roundup4k(ibHeader.SizeBytes);
 
     header.VertexStreamHeadersOffset = sizeof(SDKMESH_HEADER);
-    header.IndexStreamHeadersOffset = header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER); 
+    header.IndexStreamHeadersOffset = header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER);
     header.MeshDataOffset = header.IndexStreamHeadersOffset + sizeof(SDKMESH_INDEX_BUFFER_HEADER);
     header.SubsetDataOffset = header.MeshDataOffset + sizeof(SDKMESH_MESH);
-    header.FrameDataOffset = header.SubsetDataOffset + header.NumTotalSubsets * sizeof(SDKMESH_SUBSET);
+    header.FrameDataOffset = header.SubsetDataOffset + uint64_t(header.NumTotalSubsets) * sizeof(SDKMESH_SUBSET);
     header.MaterialDataOffset = header.FrameDataOffset + sizeof(SDKMESH_FRAME);
 
     HRESULT hr = write_file(hFile.get(), header);
@@ -2528,7 +2365,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
     meshHeader.NumSubsets = static_cast<UINT>(submeshes.size());
     meshHeader.SubsetOffset = offset;
-    offset += meshHeader.NumSubsets * sizeof(UINT);
+    offset += uint64_t(meshHeader.NumSubsets) * sizeof(UINT);
     meshHeader.FrameInfluenceOffset = offset;
     offset += sizeof(UINT);
 
@@ -2537,9 +2374,9 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
         return hr;
 
     // Write subsets
-    DWORD bytesToWrite = static_cast<DWORD>( sizeof(SDKMESH_SUBSET) * submeshes.size() );
+    DWORD bytesToWrite = static_cast<DWORD>(sizeof(SDKMESH_SUBSET) * submeshes.size());
     DWORD bytesWritten;
-    if ( !WriteFile(hFile.get(), submeshes.data(), bytesToWrite, &bytesWritten, nullptr) )
+    if (!WriteFile(hFile.get(), submeshes.data(), bytesToWrite, &bytesWritten, nullptr))
         return HRESULT_FROM_WIN32(GetLastError());
 
     if (bytesWritten != bytesToWrite)
@@ -2547,7 +2384,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
     // Write frames
     SDKMESH_FRAME frame = {};
-    strcpy_s( frame.Name, "root");
+    strcpy_s(frame.Name, "root");
     frame.ParentFrame = frame.ChildFrame = frame.SiblingFrame = DWORD(-1);
     frame.AnimationDataIndex = INVALID_ANIMATION_DATA;
     XMMATRIX id = XMMatrixIdentity();
@@ -2589,7 +2426,7 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
     if (bytesWritten != bytesToWrite)
         return E_FAIL;
 
-    bytesToWrite = static_cast<DWORD>( roundup4k(vbHeader.SizeBytes) - vbHeader.SizeBytes );
+    bytesToWrite = static_cast<DWORD>(roundup4k(vbHeader.SizeBytes) - vbHeader.SizeBytes);
     if (bytesToWrite > 0)
     {
         assert(bytesToWrite < sizeof(g_padding));
@@ -2602,8 +2439,8 @@ HRESULT Mesh::ExportToSDKMESH(const wchar_t* szFileName, size_t nMaterials, cons
 
     // Write IB data
     bytesToWrite = static_cast<DWORD>(ibHeader.SizeBytes);
-    if (!WriteFile(hFile.get(), (ib16) ? static_cast<void*>( ib16.get() ) : static_cast<void*>( mIndices.get() ),
-                   bytesToWrite, &bytesWritten, nullptr))
+    if (!WriteFile(hFile.get(), (ib16) ? static_cast<void*>(ib16.get()) : static_cast<void*>(mIndices.get()),
+        bytesToWrite, &bytesWritten, nullptr))
         return HRESULT_FROM_WIN32(GetLastError());
 
     if (bytesWritten != bytesToWrite)

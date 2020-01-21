@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
+# Visual Studio 16
 VisualStudioVersion = 15.0.27703.2000
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UVAtlas_2017_Win10", "UVAtlas_2017_Win10.vcxproj", "{10359E70-6A7F-4433-8EF1-B0FB688D830E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UVAtlas_2019_Win10", "UVAtlas_2019_Win10.vcxproj", "{10359E70-6A7F-4433-8EF1-B0FB688D830E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{092D565A-3AC4-479C-B3A6-D5D0C83E6881}"
 	ProjectSection(SolutionItems) = preProject

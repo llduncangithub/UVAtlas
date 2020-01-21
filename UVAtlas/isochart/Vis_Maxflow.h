@@ -48,9 +48,9 @@ namespace Isochart
 
         static edge_id invalid_edge_id() { return -1;}
 
-        const static node_id node_t = -10;
-        const static node_id node_s = -11;
-        const static node_id no_parent = -20;
+        static const node_id node_t = -10;
+        static const node_id node_s = -11;
+        static const node_id no_parent = -20;
 
         struct Node;
         struct Edge;
@@ -164,7 +164,7 @@ namespace Isochart
                 , m_iFlag(0), depth(0)
             {
                 edges.reserve(m_expect_degree);
-            };
+            }
 
             cap_type capacity;
             cap_type resident; // resident > 0 to s; or < 0 to t;
@@ -230,9 +230,9 @@ namespace Isochart
             int depth;   // distanst to either s or t
             
 
-            const static FLAG FREE = 0;
-            const static FLAG TO_S = 1;
-            const static FLAG TO_T = 2;
+            static const FLAG FREE = 0;
+            static const FLAG TO_S = 1;
+            static const FLAG TO_T = 2;
         };
 
         // only n-links, t-links are virtual in node
@@ -248,7 +248,7 @@ namespace Isochart
         };
 
         // reverse direction is accessed by odd and even transition
-        const edge_id reverse_edge(edge_id eid) const
+        edge_id reverse_edge(edge_id eid) const
         {
             return eid ^ 0x1;
         }

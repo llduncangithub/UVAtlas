@@ -7,9 +7,10 @@
 // Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkID=324981
+// http://go.microsoft.com/fwlink/?LinkID=512686
 //--------------------------------------------------------------------------------------
 
-#include <windows.h>
+#include <Windows.h>
 
 #include <memory>
 #include <string>
@@ -19,21 +20,20 @@
 
 #if defined(_XBOX_ONE) && defined(_TITLE)
 #include <d3d11_x.h>
-#define DCOMMON_H_INCLUDED
 #else
 #include <d3d11_1.h>
 #endif
 
-#include <directxmath.h>
+#include <DirectXMath.h>
 
-#include "directxmesh.h"
+#include "DirectXMesh.h"
 
 class Mesh
 {
 public:
-    Mesh() : mnFaces(0), mnVerts(0) {}
-    Mesh(Mesh&& moveFrom);
-    Mesh& operator= (Mesh&& moveFrom);
+    Mesh() noexcept : mnFaces(0), mnVerts(0) {}
+    Mesh(Mesh&& moveFrom) noexcept;
+    Mesh& operator= (Mesh&& moveFrom) noexcept;
 
     Mesh(Mesh const&) = delete;
     Mesh& operator= (Mesh const&) = delete;
@@ -41,31 +41,32 @@ public:
     // Methods
     void Clear();
 
-    HRESULT SetIndexData( _In_ size_t nFaces, _In_reads_(nFaces*3) const uint16_t* indices, _In_reads_opt_(nFaces) uint32_t* attributes = nullptr );
-    HRESULT SetIndexData( _In_ size_t nFaces, _In_reads_(nFaces*3) const uint32_t* indices, _In_reads_opt_(nFaces) uint32_t* attributes = nullptr );
+    HRESULT SetIndexData(_In_ size_t nFaces, _In_reads_(nFaces * 3) const uint16_t* indices, _In_reads_opt_(nFaces) uint32_t* attributes = nullptr);
+    HRESULT SetIndexData(_In_ size_t nFaces, _In_reads_(nFaces * 3) const uint32_t* indices, _In_reads_opt_(nFaces) uint32_t* attributes = nullptr);
 
-    HRESULT SetVertexData( _Inout_ DirectX::VBReader& reader, _In_ size_t nVerts );
+    HRESULT SetVertexData(_Inout_ DirectX::VBReader& reader, _In_ size_t nVerts);
 
-    HRESULT Validate( _In_ DWORD flags, _In_opt_ std::wstring* msgs ) const;
+    HRESULT Validate(_In_ DWORD flags, _In_opt_ std::wstring* msgs) const;
 
-    HRESULT Clean( _In_ bool breakBowties=false );
+    HRESULT Clean(_In_ bool breakBowties = false);
 
-    HRESULT GenerateAdjacency( _In_ float epsilon );
+    HRESULT GenerateAdjacency(_In_ float epsilon);
 
-    HRESULT ComputeNormals( _In_ DWORD flags );
+    HRESULT ComputeNormals(_In_ DWORD flags);
 
-    HRESULT ComputeTangentFrame( _In_ bool bitangents );
+    HRESULT ComputeTangentFrame(_In_ bool bitangents);
 
-    HRESULT UpdateFaces( _In_ size_t nFaces, _In_reads_(nFaces*3) const uint32_t* indices );
+    HRESULT UpdateFaces(_In_ size_t nFaces, _In_reads_(nFaces * 3) const uint32_t* indices);
 
-    HRESULT UpdateAttributes( _In_ size_t nFaces, _In_reads_(nFaces*3) const uint32_t* attributes );
+    HRESULT UpdateAttributes(_In_ size_t nFaces, _In_reads_(nFaces * 3) const uint32_t* attributes);
 
-    HRESULT UpdateUVs( _In_ size_t nVerts, _In_reads_(nVerts) const DirectX::XMFLOAT2* uvs );
+    HRESULT UpdateUVs(_In_ size_t nVerts, _In_reads_(nVerts) const DirectX::XMFLOAT2* uvs);
 
-    HRESULT VertexRemap( _In_reads_(nNewVerts) const uint32_t* remap, _In_ size_t nNewVerts );
+    HRESULT VertexRemap(_In_reads_(nNewVerts) const uint32_t* remap, _In_ size_t nNewVerts);
 
     HRESULT ReverseWinding();
 
+    HRESULT InvertUTexCoord();
     HRESULT InvertVTexCoord();
 
     HRESULT ReverseHandedness();
@@ -87,9 +88,9 @@ public:
     bool Is16BitIndexBuffer() const;
 
     const uint32_t* GetIndexBuffer() const { return mIndices.get(); }
-    std::unique_ptr<uint16_t []> GetIndexBuffer16() const;
+    std::unique_ptr<uint16_t[]> GetIndexBuffer16() const;
 
-    HRESULT GetVertexBuffer(_Inout_ DirectX::VBWriter& writer ) const;
+    HRESULT GetVertexBuffer(_Inout_ DirectX::VBWriter& writer) const;
 
     // Save mesh to file
     struct Material
@@ -103,14 +104,51 @@ public:
         DirectX::XMFLOAT3   specularColor;
         DirectX::XMFLOAT3   emissiveColor;
         std::wstring        texture;
+        std::wstring        normalTexture;
+        std::wstring        specularTexture;
+        std::wstring        emissiveTexture;
+        std::wstring        rmaTexture;
+
+        Material() noexcept :
+            perVertexColor(false),
+            specularPower(1.f),
+            alpha(1.f),
+            ambientColor{},
+            diffuseColor{},
+            specularColor{},
+            emissiveColor{}
+        {
+        }
+
+        Material(
+            const wchar_t* iname,
+            bool pvc,
+            float power,
+            float ialpha,
+            const DirectX::XMFLOAT3& ambient,
+            const DirectX::XMFLOAT3 diffuse,
+            const DirectX::XMFLOAT3& specular,
+            const DirectX::XMFLOAT3& emissive,
+            const wchar_t* txtname) :
+            name(iname),
+            perVertexColor(pvc),
+            specularPower(power),
+            alpha(ialpha),
+            ambientColor(ambient),
+            diffuseColor(diffuse),
+            specularColor(specular),
+            emissiveColor(emissive),
+            texture(txtname)
+        {
+        }
     };
 
-    HRESULT ExportToVBO( _In_z_ const wchar_t* szFileName ) const;
-    HRESULT ExportToCMO( _In_z_ const wchar_t* szFileName, _In_ size_t nMaterials, _In_reads_opt_(nMaterials) const Material* materials ) const;
-    HRESULT ExportToSDKMESH( _In_z_ const wchar_t* szFileName, _In_ size_t nMaterials, _In_reads_opt_(nMaterials) const Material* materials  ) const;
+    HRESULT ExportToVBO(_In_z_ const wchar_t* szFileName) const;
+    HRESULT ExportToCMO(_In_z_ const wchar_t* szFileName, _In_ size_t nMaterials, _In_reads_opt_(nMaterials) const Material* materials) const;
+    HRESULT ExportToSDKMESH(_In_z_ const wchar_t* szFileName, _In_ size_t nMaterials, _In_reads_opt_(nMaterials) const Material* materials, bool force32bit = false, bool version2 = false) const;
 
     // Create mesh from file
-    static HRESULT CreateFromVBO( _In_z_ const wchar_t* szFileName, _Inout_ std::unique_ptr<Mesh>& result );
+    static HRESULT CreateFromVBO(_In_z_ const wchar_t* szFileName, _Inout_ std::unique_ptr<Mesh>& result);
 
 private:
     size_t                                      mnFaces;
